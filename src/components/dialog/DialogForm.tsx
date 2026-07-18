@@ -44,12 +44,15 @@ export function DialogForm({ selection }: Props) {
     if (kind !== dialog!.kind) switchKind(sceneId, visualId, dialogId, kind)
   }
 
-  const dialogNames = visual?.dialogs.reduce<Record<string, string>>((acc, d) => {
-    if (d.kind === 'line') acc[d.id] = (d as LineDialog).text.slice(0, 30) || `(line)`
-    else if (d.kind === 'choice') acc[d.id] = (d as ChoiceDialog).text.slice(0, 30) || `(choice)`
-    else acc[d.id] = `(conditional)`
-    return acc
-  }, {})
+  const dialogNames =
+    scene?.visuals.reduce<Record<string, string>>((acc, v) => {
+      for (const d of v.dialogs) {
+        if (d.kind === 'line') acc[d.id] = (d as LineDialog).text.slice(0, 30) || `(line)`
+        else if (d.kind === 'choice') acc[d.id] = (d as ChoiceDialog).text.slice(0, 30) || `(choice)`
+        else acc[d.id] = `(conditional)`
+      }
+      return acc
+    }, {}) ?? {}
 
   return (
     <div className="dialog-form">

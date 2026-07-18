@@ -1,3 +1,5 @@
+import { DIALOG_WIDTH } from './dialogNodeLayout'
+
 export const DESCRIPTION_FONT_SIZE = 11
 export const DESCRIPTION_LINE_HEIGHT = Math.ceil(DESCRIPTION_FONT_SIZE * 1.45)
 export const DESCRIPTION_MAX_LINES = 2
@@ -6,7 +8,7 @@ export const META_GAP = 6
 export const META_HORIZONTAL_PAD = 24
 export const TAGS_ROW_HEIGHT = 22
 
-const NODE_INNER_WIDTH = 240 - META_HORIZONTAL_PAD
+const NODE_INNER_WIDTH = DIALOG_WIDTH - META_HORIZONTAL_PAD
 
 export function estimateDescriptionLineCount(description: string): number {
   const trimmed = description.trim()

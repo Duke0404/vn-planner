@@ -16,7 +16,7 @@ import {
 } from './dialogNodeLayout'
 import type { Speaker } from '../model/speakers'
 
-const NODE_WIDTH = 240
+const NODE_WIDTH = DIALOG_WIDTH
 const NODE_HEIGHT = 80
 const HEADER_HEIGHT = 44
 const GROUP_PADDING = 20

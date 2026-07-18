@@ -38,7 +38,53 @@ function wireLeafToNext(after: Dialog, newDialogId: string): void {
   }
 }
 
-function createDialogBundle(kind: DialogKind): { dialog: Dialog; extras: Dialog[] } {
+function applyLineSpeaker(dialog: Dialog, speakerId: string | null | undefined): void {
+  if (dialog.kind === 'line' && speakerId) {
+    ;(dialog as LineDialog).speakerId = speakerId
+  }
+}
+
+function findIncomingLineSpeaker(visual: Visual, targetId: string): string | null {
+  for (const d of visual.dialogs) {
+    if (d.kind === 'line') {
+      if ((d as LineDialog).nextId === targetId) {
+        return (d as LineDialog).speakerId
+      }
+    } else if (d.kind === 'choice') {
+      const cd = d as ChoiceDialog
+      if (cd.options.some(o => o.nextId === targetId)) {
+        return findIncomingLineSpeaker(visual, d.id)
+      }
+    } else if (d.kind === 'conditional') {
+      const cond = d as ConditionalDialog
+      if (cond.trueNextId === targetId || cond.falseNextId === targetId) {
+        return findIncomingLineSpeaker(visual, d.id)
+      }
+    }
+  }
+  return null
+}
+
+export function resolveSpeakerForSeriesInsert(
+  visual: Visual,
+  afterDialogId: string,
+  lastLineSpeakerId?: string | null,
+): string | null {
+  const after = visual.dialogs.find(d => d.id === afterDialogId)
+  if (after?.kind === 'line') {
+    const speakerId = (after as LineDialog).speakerId
+    if (speakerId) return speakerId
+  } else {
+    const incoming = findIncomingLineSpeaker(visual, afterDialogId)
+    if (incoming) return incoming
+  }
+  return lastLineSpeakerId ?? null
+}
+
+function createDialogBundle(
+  kind: DialogKind,
+  lineSpeakerId?: string | null,
+): { dialog: Dialog; extras: Dialog[] } {
   if (kind === 'choice') {
     const blankA = createBlankLineDialog()
     const blankB = createBlankLineDialog()
@@ -49,7 +95,9 @@ function createDialogBundle(kind: DialogKind): { dialog: Dialog; extras: Dialog[
     ]
     return { dialog: d, extras: [blankA, blankB] }
   }
-  return { dialog: createBlankDialog(kind), extras: [] }
+  const dialog = createBlankDialog(kind)
+  applyLineSpeaker(dialog, lineSpeakerId)
+  return { dialog, extras: [] }
 }
 
 // ─── Scene mutations ──────────────────────────────────────────────────────────
@@ -144,8 +192,17 @@ export function addDialogSeries(
   sourceDialogId: string,
   targetDialogId: string,
   kind: DialogKind,
+  lineSpeakerId?: string | null,
 ): Scene[] {
-  return insertDialogAfter(scenes, sceneId, visualId, sourceDialogId, kind, targetDialogId)
+  return insertDialogAfter(
+    scenes,
+    sceneId,
+    visualId,
+    sourceDialogId,
+    kind,
+    targetDialogId,
+    lineSpeakerId,
+  )
 }
 
 /** Insert a new dialog in series after a leaf (or splice when mid-chain). */
@@ -156,12 +213,23 @@ export function insertDialogSeriesAfter(
   afterDialogId: string,
   kind: DialogKind,
   target: SeriesInsertTarget = 'same-visual',
+  lineSpeakerId?: string | null,
 ): SeriesInsertResult {
   if (target === 'same-visual') {
-    return { scenes: insertDialogAfter(scenes, sceneId, visualId, afterDialogId, kind) }
+    return {
+      scenes: insertDialogAfter(
+        scenes,
+        sceneId,
+        visualId,
+        afterDialogId,
+        kind,
+        undefined,
+        lineSpeakerId,
+      ),
+    }
   }
 
-  const { dialog: newDialog, extras } = createDialogBundle(kind)
+  const { dialog: newDialog, extras } = createDialogBundle(kind, lineSpeakerId)
 
   if (target === 'new-visual') {
     let newVisualId = ''
@@ -218,13 +286,14 @@ export function insertDialogAfter(
   afterDialogId: string,
   kind: DialogKind,
   explicitTargetId?: string | null,
+  lineSpeakerId?: string | null,
 ): Scene[] {
   return scenes.map(s => {
     if (s.id !== sceneId) return s
     const next = Scene.fromJSON(s.toJSON())
     next.visuals = next.visuals.map(v => {
       if (v.id !== visualId) return v
-      const { dialog: newDialog, extras } = createDialogBundle(kind)
+      const { dialog: newDialog, extras } = createDialogBundle(kind, lineSpeakerId)
       const after = v.dialogs.find(d => d.id === afterDialogId)
 
       if (!after) {

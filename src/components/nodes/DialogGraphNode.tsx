@@ -62,7 +62,10 @@ export const DialogGraphNode = memo(function DialogGraphNode({ data, id }: NodeP
   const [showAddMenu, setShowAddMenu] = useState(false)
 
   const isSelected = selection?.type === 'dialog' && selection.dialogId === dialog.id
-  const isLinkTarget = linkPickMode !== null && linkPickMode.visualId === visualId
+  const isLinkTarget =
+    linkPickMode !== null &&
+    linkPickMode.sceneId === sceneId &&
+    dialog.id !== linkPickMode.sourceId
 
   function handleClick(e: React.MouseEvent) {
     e.stopPropagation()

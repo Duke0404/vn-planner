@@ -24,6 +24,7 @@ import {
   addDialogParallel,
   addDialogSeries,
   insertDialogSeriesAfter,
+  resolveSpeakerForSeriesInsert,
   updateDialog,
   switchDialogKind,
   deleteDialog,
@@ -80,9 +81,24 @@ interface PlannerState {
   contextMenu: ContextMenuTarget | null
   configOpen: boolean
   encryptExportImport: boolean
+  lastLineSpeakerId: string | null
 }
 
 const MAX_HISTORY = 20
+
+function resolveLineSpeakerForInsert(
+  project: Project,
+  sceneId: string,
+  visualId: string,
+  afterDialogId: string,
+  kind: DialogKind,
+  lastLineSpeakerId: string | null,
+): string | null | undefined {
+  if (kind !== 'line') return undefined
+  const visual = project.scenes.find(s => s.id === sceneId)?.visuals.find(v => v.id === visualId)
+  if (!visual) return lastLineSpeakerId
+  return resolveSpeakerForSeriesInsert(visual, afterDialogId, lastLineSpeakerId)
+}
 
 function makeBlankProject(): Project {
   const scene = createBlankScene()
@@ -216,6 +232,7 @@ export const usePlannerStore = create<PlannerState & PlannerActions>()(
       contextMenu: null,
       configOpen: false,
       encryptExportImport: true,
+      lastLineSpeakerId: null,
 
       pushHistory() {
         const { project, history } = get()
@@ -440,7 +457,15 @@ export const usePlannerStore = create<PlannerState & PlannerActions>()(
 
       addDialogSeries(sceneId, visualId, sourceId, targetId, kind) {
         get().pushHistory()
-        const { project } = get()
+        const { project, lastLineSpeakerId } = get()
+        const lineSpeakerId = resolveLineSpeakerForInsert(
+          project,
+          sceneId,
+          visualId,
+          sourceId,
+          kind,
+          lastLineSpeakerId,
+        )
         const scenes = addDialogSeries(
           project.scenes,
           sceneId,
@@ -448,13 +473,26 @@ export const usePlannerStore = create<PlannerState & PlannerActions>()(
           sourceId,
           targetId,
           kind,
+          lineSpeakerId,
         )
-        set({ project: { ...project, scenes } })
+        set({
+          project: { ...project, scenes },
+          lastLineSpeakerId:
+            kind === 'line' && lineSpeakerId ? lineSpeakerId : lastLineSpeakerId,
+        })
       },
 
       insertDialogAfter(sceneId, visualId, afterDialogId, kind, target = 'same-visual') {
         get().pushHistory()
-        const { project, expandedSceneIds, expandedVisualIds } = get()
+        const { project, expandedSceneIds, expandedVisualIds, lastLineSpeakerId } = get()
+        const lineSpeakerId = resolveLineSpeakerForInsert(
+          project,
+          sceneId,
+          visualId,
+          afterDialogId,
+          kind,
+          lastLineSpeakerId,
+        )
         const result = insertDialogSeriesAfter(
           project.scenes,
           sceneId,
@@ -462,6 +500,7 @@ export const usePlannerStore = create<PlannerState & PlannerActions>()(
           afterDialogId,
           kind,
           target,
+          lineSpeakerId,
         )
 
         let nextSceneIds = expandedSceneIds.includes(sceneId)
@@ -482,6 +521,8 @@ export const usePlannerStore = create<PlannerState & PlannerActions>()(
           project: { ...project, scenes: result.scenes },
           expandedSceneIds: nextSceneIds,
           expandedVisualIds: nextVisualIds,
+          lastLineSpeakerId:
+            kind === 'line' && lineSpeakerId ? lineSpeakerId : lastLineSpeakerId,
         })
       },
 
@@ -501,9 +542,11 @@ export const usePlannerStore = create<PlannerState & PlannerActions>()(
       },
 
       updateDialogField(sceneId, visualId, dialogId, patch) {
-        const { project } = get()
+        const { project, lastLineSpeakerId } = get()
         const scenes = updateDialog(project.scenes, sceneId, visualId, dialogId, patch)
-        set({ project: { ...project, scenes } })
+        const nextLastSpeaker =
+          'speakerId' in patch && patch.speakerId ? patch.speakerId : lastLineSpeakerId
+        set({ project: { ...project, scenes }, lastLineSpeakerId: nextLastSpeaker })
       },
 
       switchKind(sceneId, visualId, dialogId, kind) {
