@@ -8,6 +8,7 @@ import {
 } from '../../model/nodes'
 import { ALL_COMPARE_OPS } from '../../model/CompareOp'
 import { TagPicker } from '../shared/TagPicker'
+import { SpeakerPicker } from '../shared/SpeakerPicker'
 import { VariableSelect } from '../shared/VariableSelect'
 import { VariableEffectEditor } from '../shared/VariableEffectEditor'
 
@@ -88,16 +89,13 @@ export function DialogForm({ selection }: Props) {
           {dialog.kind === 'line' && (
             <div className="form-row">
               <label>Speaker</label>
-              <input
-                type="text"
-                value={(dialog as LineDialog).speaker}
-                onChange={e =>
+              <SpeakerPicker
+                value={(dialog as LineDialog).speakerId}
+                onChange={speakerId =>
                   updateDialogField(sceneId, visualId, dialogId, {
-                    speaker: e.target.value,
+                    speakerId,
                   } as Partial<LineDialog>)
                 }
-                onBlur={pushHistory}
-                placeholder="Speaker name…"
               />
             </div>
           )}

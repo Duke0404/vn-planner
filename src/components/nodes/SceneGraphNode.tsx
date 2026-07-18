@@ -3,6 +3,7 @@ import type { NodeProps } from '@xyflow/react'
 import type { FlowNodeData } from '../../lib/graphLayout'
 import { usePlannerStore } from '../../store/usePlannerStore'
 import { isSceneExpanded } from '../../store/selectors'
+import { TagChipList } from '../shared/TagChipList'
 
 export const SceneGraphNode = memo(function SceneGraphNode({ data, width, height }: NodeProps) {
   const d = data as FlowNodeData
@@ -76,11 +77,7 @@ export const SceneGraphNode = memo(function SceneGraphNode({ data, width, height
       </div>
       {scene.tagIds.length > 0 && (
         <div className="group-node-tags">
-          {scene.tagIds.map(tagId => (
-            <span key={tagId} className="tag-chip">
-              {tagId}
-            </span>
-          ))}
+          <TagChipList tagIds={scene.tagIds} />
         </div>
       )}
       <div className="group-node-body" aria-hidden="true" />

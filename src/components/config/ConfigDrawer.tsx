@@ -1,6 +1,7 @@
 import { usePlannerStore } from '../../store/usePlannerStore'
 import { VariableEditor } from './VariableEditor'
 import { TagEditor } from './TagEditor'
+import { SpeakerEditor } from './SpeakerEditor'
 
 export function ConfigDrawer() {
   const open = usePlannerStore(s => s.configOpen)
@@ -19,6 +20,8 @@ export function ConfigDrawer() {
           <VariableEditor />
           <div className="drawer-divider" />
           <TagEditor />
+          <div className="drawer-divider" />
+          <SpeakerEditor />
         </div>
       </div>
     </div>

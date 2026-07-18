@@ -1,5 +1,6 @@
 import type { Tag } from '../../model/tags'
 import { usePlannerStore } from '../../store/usePlannerStore'
+import { ColorInput } from '../shared/ColorInput'
 
 interface NodeProps {
   tag: Tag
@@ -14,10 +15,15 @@ function TagNode({ tag, depth }: NodeProps) {
   return (
     <div style={{ paddingLeft: depth * 16 }} className="tag-node">
       <div className="tag-row">
+        <ColorInput
+          value={tag.color}
+          onChange={color => updateTag(tag.id, { color })}
+          title="Tag color"
+        />
         <input
           type="text"
           value={tag.name}
-          onChange={e => updateTag(tag.id, e.target.value)}
+          onChange={e => updateTag(tag.id, { name: e.target.value })}
           placeholder="Tag name"
           style={{ flex: 1 }}
         />

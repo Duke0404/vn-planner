@@ -6,6 +6,24 @@ function formatSegment(s: RangeSegment): string {
   return s.min === s.max ? `${s.min}` : `${s.min}–${s.max}`
 }
 
+function RangeValues({ segments }: { segments: RangeSegment[] }) {
+  if (segments.length === 0) {
+    return <span className="range-chip impossible">∅</span>
+  }
+  if (segments.length === 1) {
+    return <span className="range-chip">{formatSegment(segments[0])}</span>
+  }
+  return (
+    <>
+      {segments.map((s, i) => (
+        <span key={i} className="range-chip disjoint">
+          {formatSegment(s)}
+        </span>
+      ))}
+    </>
+  )
+}
+
 export function VariableRangesSidebar() {
   const selection = usePlannerStore(s => s.selection)
   const project = usePlannerStore(s => s.project)
@@ -32,21 +50,14 @@ export function VariableRangesSidebar() {
       ) : (
         <div className="range-list">
           {ranges?.map(r => (
-            <div key={r.variableId} className="range-row">
+            <div
+              key={r.variableId}
+              className="range-row"
+              style={{ paddingLeft: r.depth * 16 }}
+            >
               <span className="range-label">{r.label}</span>
-              <div className="range-chips">
-                {r.segments.length === 0 ? (
-                  <span className="range-chip impossible">∅</span>
-                ) : r.segments.length === 1 ? (
-                  <span className="range-chip">{formatSegment(r.segments[0])}</span>
-                ) : (
-                  r.segments.map((s, i) => (
-                    <span key={i} className="range-chip disjoint">
-                      {formatSegment(s)}
-                    </span>
-                  ))
-                )}
-              </div>
+              <span className="range-equals">=</span>
+              <RangeValues segments={r.segments} />
             </div>
           ))}
         </div>

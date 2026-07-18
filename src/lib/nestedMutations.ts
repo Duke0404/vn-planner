@@ -341,7 +341,7 @@ export function switchDialogKind(
         const d = new LineDialog(dialogId)
         d.tagIds = old.tagIds
         if (old.kind === 'line') {
-          d.speaker = (old as LineDialog).speaker
+          d.speakerId = (old as LineDialog).speakerId
           d.text = (old as LineDialog).text
         } else if (old.kind === 'choice') {
           d.text = (old as ChoiceDialog).text

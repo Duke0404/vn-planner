@@ -11,7 +11,8 @@ import {
   type ChoiceOption,
 } from '../model/nodes'
 import { type Variable, createVariable } from '../model/variables'
-import { createTag } from '../model/tags'
+import { createTag, type Tag } from '../model/tags'
+import { createSpeaker, type Speaker } from '../model/speakers'
 import { nanoid } from '../lib/nanoid'
 import {
   addScene,
@@ -37,6 +38,12 @@ import {
   addSubVariable,
 } from '../lib/variableTree'
 import { removeTag, updateTag, addSubTag } from '../lib/tagTree'
+import {
+  addSubSpeaker,
+  collectReferencedSpeakerIds,
+  removeSpeaker,
+  updateSpeaker,
+} from '../lib/speakerTree'
 import { sanitizeUiState } from './selectors'
 import {
   decryptExportPayload,
@@ -79,7 +86,7 @@ const MAX_HISTORY = 20
 
 function makeBlankProject(): Project {
   const scene = createBlankScene()
-  return { variables: [], tags: [], scenes: [scene] }
+  return { variables: [], tags: [], speakers: [], scenes: [scene] }
 }
 
 function snapshot(p: Project): string {
@@ -181,8 +188,13 @@ interface PlannerActions {
 
   addRootTag: () => void
   addSubTag: (parentId: string) => void
-  updateTag: (id: string, name: string) => void
+  updateTag: (id: string, patch: Partial<Pick<Tag, 'name' | 'color'>>) => void
   deleteTag: (id: string) => void
+
+  addRootSpeaker: () => void
+  addSubSpeaker: (parentId: string) => void
+  updateSpeaker: (id: string, patch: Partial<Pick<Speaker, 'name' | 'color'>>) => void
+  deleteSpeaker: (id: string) => string | void
 
   setConfigOpen: (open: boolean) => void
 
@@ -629,12 +641,12 @@ export const usePlannerStore = create<PlannerState & PlannerActions>()(
         })
       },
 
-      updateTag(id, name) {
+      updateTag(id, patch) {
         const { project } = get()
         set({
           project: {
             ...project,
-            tags: updateTag(project.tags, id, { name }),
+            tags: updateTag(project.tags, id, patch),
           },
         })
       },
@@ -645,6 +657,47 @@ export const usePlannerStore = create<PlannerState & PlannerActions>()(
           project: {
             ...project,
             tags: removeTag(project.tags, id),
+          },
+        })
+      },
+
+      addRootSpeaker() {
+        const { project } = get()
+        const speaker = createSpeaker()
+        set({ project: { ...project, speakers: [...project.speakers, speaker] } })
+      },
+
+      addSubSpeaker(parentId) {
+        const { project } = get()
+        const child = createSpeaker()
+        set({
+          project: {
+            ...project,
+            speakers: addSubSpeaker(project.speakers, parentId, child),
+          },
+        })
+      },
+
+      updateSpeaker(id, patch) {
+        const { project } = get()
+        set({
+          project: {
+            ...project,
+            speakers: updateSpeaker(project.speakers, id, patch),
+          },
+        })
+      },
+
+      deleteSpeaker(id) {
+        const { project } = get()
+        const referenced = collectReferencedSpeakerIds(project.scenes)
+        if (referenced.has(id)) {
+          return 'Speaker is used by a dialog and cannot be deleted.'
+        }
+        set({
+          project: {
+            ...project,
+            speakers: removeSpeaker(project.speakers, id),
           },
         })
       },

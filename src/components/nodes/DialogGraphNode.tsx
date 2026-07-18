@@ -7,6 +7,10 @@ import { LeafAddMenu } from '../graph/LeafAddMenu'
 import type { Dialog, DialogKind } from '../../model/nodes'
 import type { SeriesInsertTarget } from '../../lib/nestedMutations'
 import { LineDialog, ChoiceDialog, ConditionalDialog, isLeafDialog } from '../../model/nodes'
+import { findSpeaker } from '../../lib/speakerTree'
+import type { Speaker } from '../../model/speakers'
+import { NARRATION_COLOR } from '../../model/colors'
+import { TagChipList } from '../shared/TagChipList'
 
 function kindIcon(kind: Dialog['kind']) {
   if (kind === 'line') return '💬'
@@ -14,10 +18,11 @@ function kindIcon(kind: Dialog['kind']) {
   return '❓'
 }
 
-function preview(dialog: Dialog): string {
+function preview(dialog: Dialog, speakers: Speaker[]): string {
   if (dialog.kind === 'line') {
     const d = dialog as LineDialog
-    const prefix = d.speaker ? `${d.speaker}: ` : ''
+    const speaker = d.speakerId ? findSpeaker(speakers, d.speakerId) : null
+    const prefix = speaker ? `${speaker.name}: ` : ''
     return (prefix + d.text).slice(0, 48) || '(empty)'
   }
   if (dialog.kind === 'choice') {
@@ -47,12 +52,18 @@ export const DialogGraphNode = memo(function DialogGraphNode({ data, id }: NodeP
         }
       : null
 
+  const speakers = usePlannerStore(s => s.project.speakers)
   const visual = usePlannerStore(s => {
     const scene = s.project.scenes.find(sc => sc.id === sceneId)
     return scene?.visuals.find(v => v.id === visualId)
   })
   const liveDialog = visual?.dialogs.find(dg => dg.id === dialog.id) ?? dialog
   const showSeriesAdd = isLeafDialog(liveDialog)
+  const lineSpeaker =
+    liveDialog.kind === 'line' && (liveDialog as LineDialog).speakerId
+      ? findSpeaker(speakers, (liveDialog as LineDialog).speakerId!)
+      : null
+  const speakerColor = lineSpeaker?.color ?? NARRATION_COLOR
 
   const select = usePlannerStore(s => s.select)
   const deleteDialogAction = usePlannerStore(s => s.deleteDialog)
@@ -112,7 +123,9 @@ export const DialogGraphNode = memo(function DialogGraphNode({ data, id }: NodeP
       <Handle type="target" position={Position.Top} />
       <div className="node-header">
         <span className="kind-icon">{kindIcon(dialog.kind)}</span>
-        <span className="node-preview">{preview(dialog)}</span>
+        <span className="node-preview" style={{ color: liveDialog.kind === 'line' ? speakerColor : undefined }}>
+          {preview(liveDialog, speakers)}
+        </span>
         <div className="node-actions">
           <button
             type="button"
@@ -125,13 +138,9 @@ export const DialogGraphNode = memo(function DialogGraphNode({ data, id }: NodeP
           </button>
         </div>
       </div>
-      {dialog.tagIds.length > 0 && (
+      {liveDialog.tagIds.length > 0 && (
         <div className="node-tags">
-          {dialog.tagIds.slice(0, 3).map(id => (
-            <span key={id} className="tag-chip small">
-              {id}
-            </span>
-          ))}
+          <TagChipList tagIds={liveDialog.tagIds.slice(0, 3)} small />
         </div>
       )}
       {showSeriesAdd && addAnchor && (

@@ -1,5 +1,6 @@
 import { usePlannerStore } from '../../store/usePlannerStore'
 import { flattenTags } from '../../lib/tagTree'
+import { chipStyle } from '../../model/colors'
 
 interface Props {
   value: string[]
@@ -20,16 +21,20 @@ export function TagPicker({ value, onChange }: Props) {
 
   return (
     <div className="tag-picker">
-      {flat.map(t => (
-        <button
-          key={t.id}
-          type="button"
-          className={`tag-chip ${value.includes(t.id) ? 'selected' : ''}`}
-          onClick={() => toggle(t.id)}
-        >
-          {t.name}
-        </button>
-      ))}
+      {flat.map(t => {
+        const selected = value.includes(t.id)
+        return (
+          <button
+            key={t.id}
+            type="button"
+            className={`tag-chip ${selected ? 'selected' : ''}`}
+            style={chipStyle(t.color, selected)}
+            onClick={() => toggle(t.id)}
+          >
+            {t.name}
+          </button>
+        )
+      })}
     </div>
   )
 }

@@ -25,6 +25,27 @@ export function findVariable(variables: Variable[], id: string): Variable | null
   return null
 }
 
+/** Path from root to the variable with the given ID */
+export function getVariablePath(variables: Variable[], id: string): Variable[] | null {
+  for (const v of variables) {
+    if (v.id === id) return [v]
+    const childPath = getVariablePath(v.children, id)
+    if (childPath) return [v, ...childPath]
+  }
+  return null
+}
+
+/** Label for variable range display: root uses emoji + name; nested uses emoji chain + names joined with " - " */
+export function formatVariableRangeLabel(path: Variable[]): string {
+  if (path.length === 1) {
+    const v = path[0]
+    return `${v.emoji ? `${v.emoji} ` : ''}${v.name}`
+  }
+  const emojiPart = path.map(v => v.emoji).filter(Boolean).join(' ')
+  const namePart = path.map(v => v.name).join(' - ')
+  return emojiPart ? `${emojiPart} ${namePart}` : namePart
+}
+
 /** Collect all variable IDs referenced by effects and conditions in the project */
 export function collectReferencedVariableIds(scenes: Scene[]): Set<string> {
   const ids = new Set<string>()

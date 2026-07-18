@@ -5,6 +5,7 @@ import { usePlannerStore } from '../../store/usePlannerStore'
 import { isVisualExpanded } from '../../store/selectors'
 import { AddKindMenu } from '../graph/AddKindMenu'
 import type { DialogKind } from '../../model/nodes'
+import { TagChipList } from '../shared/TagChipList'
 
 export const VisualGraphNode = memo(function VisualGraphNode({ data, width, height }: NodeProps) {
   const d = data as FlowNodeData
@@ -91,6 +92,11 @@ export const VisualGraphNode = memo(function VisualGraphNode({ data, width, heig
           </button>
         </div>
       </div>
+      {visual.tagIds.length > 0 && (
+        <div className="group-node-tags">
+          <TagChipList tagIds={visual.tagIds} />
+        </div>
+      )}
       <div className="group-node-body" aria-hidden="true" />
     </div>
   )

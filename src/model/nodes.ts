@@ -1,5 +1,6 @@
 import type { CompareOp } from './CompareOp'
 import { nanoid } from '../lib/nanoid'
+import { legacySpeakerId } from '../lib/legacySpeaker'
 
 export type DialogKind = 'line' | 'choice' | 'conditional'
 
@@ -47,13 +48,13 @@ export abstract class Dialog extends PlannerNode {
 
 export class LineDialog extends Dialog {
   readonly kind = 'line' as const
-  speaker: string
+  speakerId: string | null
   text: string
   nextId: string | null
 
   constructor(id?: string) {
     super(id)
-    this.speaker = ''
+    this.speakerId = null
     this.text = ''
     this.nextId = null
   }
@@ -67,7 +68,7 @@ export class LineDialog extends Dialog {
       kind: this.kind,
       id: this.id,
       tagIds: this.tagIds,
-      speaker: this.speaker,
+      speakerId: this.speakerId,
       text: this.text,
       nextId: this.nextId,
     }
@@ -134,7 +135,12 @@ export function dialogFromJSON(raw: Record<string, unknown>): Dialog {
   let d: Dialog
   if (kind === 'line') {
     const ld = new LineDialog(raw.id as string)
-    ld.speaker = (raw.speaker as string) ?? ''
+    if (raw.speakerId !== undefined) {
+      ld.speakerId = (raw.speakerId as string | null) ?? null
+    } else {
+      const legacySpeaker = ((raw.speaker as string) ?? '').trim()
+      ld.speakerId = legacySpeaker ? legacySpeakerId(legacySpeaker) : null
+    }
     ld.text = (raw.text as string) ?? ''
     ld.nextId = (raw.nextId as string | null) ?? null
     d = ld

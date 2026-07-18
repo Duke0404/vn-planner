@@ -9,7 +9,7 @@ import {
 } from '../model/nodes'
 import type { Variable } from '../model/variables'
 import type { VariableEffectOp } from '../model/nodes'
-import { flattenVariables } from './variableTree'
+import { flattenVariables, formatVariableRangeLabel, getVariablePath } from './variableTree'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -27,6 +27,7 @@ export interface RangeSegment {
 export interface ComputedRange {
   variableId: string
   label: string
+  depth: number
   segments: RangeSegment[]
 }
 
@@ -245,11 +246,15 @@ export function getRangesForSelection(
   const seed = seedRanges(variables)
 
   function toComputed(ranges: VarRanges): ComputedRange[] {
-    return flat.map(v => ({
-      variableId: v.id,
-      label: `${v.emoji ? v.emoji + ' ' : ''}${v.name}`,
-      segments: ranges.get(v.id) ?? [{ min: v.min, max: v.max }],
-    }))
+    return flat.map(v => {
+      const path = getVariablePath(variables, v.id) ?? [v]
+      return {
+        variableId: v.id,
+        label: formatVariableRangeLabel(path),
+        depth: path.length - 1,
+        segments: ranges.get(v.id) ?? [{ min: v.min, max: v.max }],
+      }
+    })
   }
 
   const scene = scenes.find(s => s.id === selection.sceneId)
