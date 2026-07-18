@@ -6,11 +6,17 @@ import { isVisualExpanded } from '../../store/selectors'
 import { AddKindMenu } from '../graph/AddKindMenu'
 import type { DialogKind } from '../../model/nodes'
 import { TagChipList } from '../shared/TagChipList'
+import { estimateDescriptionLineCount } from '../../lib/visualMetaLayout'
 
 export const VisualGraphNode = memo(function VisualGraphNode({ data, width, height }: NodeProps) {
   const d = data as FlowNodeData
   if (d.nodeType !== 'visual') return null
   const { visual, sceneId } = d
+
+  const liveVisual = usePlannerStore(s => {
+    const scene = s.project.scenes.find(sc => sc.id === sceneId)
+    return scene?.visuals.find(v => v.id === visual.id) ?? visual
+  })
 
   const select = usePlannerStore(s => s.select)
   const toggleExpand = usePlannerStore(s => s.toggleExpandVisual)
@@ -52,9 +58,9 @@ export const VisualGraphNode = memo(function VisualGraphNode({ data, width, heig
         >
           {isExpanded ? '▲' : '▼'}
         </button>
-        <span className="node-title">🖼 {visual.name || 'Visual'}</span>
+        <span className="node-title">🖼 {liveVisual.name || 'Visual'}</span>
         <span className="node-visual-count">
-          {visual.dialogs.length} dialog{visual.dialogs.length !== 1 ? 's' : ''}
+          {liveVisual.dialogs.length} dialog{liveVisual.dialogs.length !== 1 ? 's' : ''}
         </span>
         <div className="node-actions">
           <div className="node-add-action">
@@ -92,9 +98,20 @@ export const VisualGraphNode = memo(function VisualGraphNode({ data, width, heig
           </button>
         </div>
       </div>
-      {visual.tagIds.length > 0 && (
-        <div className="group-node-tags">
-          <TagChipList tagIds={visual.tagIds} />
+      {(liveVisual.description || liveVisual.tagIds.length > 0) && (
+        <div className="group-node-meta">
+          {liveVisual.description && (
+            <p
+              className={`group-node-description lines-${estimateDescriptionLineCount(liveVisual.description)}`}
+            >
+              {liveVisual.description}
+            </p>
+          )}
+          {liveVisual.tagIds.length > 0 && (
+            <div className="group-node-tags">
+              <TagChipList tagIds={liveVisual.tagIds} />
+            </div>
+          )}
         </div>
       )}
       <div className="group-node-body" aria-hidden="true" />

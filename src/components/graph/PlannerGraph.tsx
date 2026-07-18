@@ -29,6 +29,7 @@ const edgeTypes: EdgeTypes = {
 
 export function PlannerGraph() {
   const scenes = usePlannerStore(s => s.project.scenes)
+  const speakers = usePlannerStore(s => s.project.speakers)
   const expandedSceneIds = usePlannerStore(s => s.expandedSceneIds)
   const expandedVisualIds = usePlannerStore(s => s.expandedVisualIds)
   const select = usePlannerStore(s => s.select)
@@ -42,8 +43,9 @@ export function PlannerGraph() {
         scenes,
         new Set(expandedSceneIds),
         new Set(expandedVisualIds),
+        speakers,
       ),
-    [scenes, expandedSceneIds, expandedVisualIds],
+    [scenes, speakers, expandedSceneIds, expandedVisualIds],
   )
 
   const onPaneClick = useCallback(() => {

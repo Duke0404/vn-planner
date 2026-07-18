@@ -4,36 +4,18 @@ import type { NodeProps } from '@xyflow/react'
 import type { FlowNodeData } from '../../lib/graphLayout'
 import { usePlannerStore } from '../../store/usePlannerStore'
 import { LeafAddMenu } from '../graph/LeafAddMenu'
-import type { Dialog, DialogKind } from '../../model/nodes'
+import type { DialogKind } from '../../model/nodes'
 import type { SeriesInsertTarget } from '../../lib/nestedMutations'
-import { LineDialog, ChoiceDialog, ConditionalDialog, isLeafDialog } from '../../model/nodes'
+import { LineDialog, isLeafDialog } from '../../model/nodes'
 import { findSpeaker } from '../../lib/speakerTree'
-import type { Speaker } from '../../model/speakers'
 import { NARRATION_COLOR } from '../../model/colors'
 import { TagChipList } from '../shared/TagChipList'
+import { getDialogPreviewText } from '../../lib/dialogNodeLayout'
 
-function kindIcon(kind: Dialog['kind']) {
+function kindIcon(kind: 'line' | 'choice' | 'conditional') {
   if (kind === 'line') return '💬'
   if (kind === 'choice') return '🔀'
   return '❓'
-}
-
-function preview(dialog: Dialog, speakers: Speaker[]): string {
-  if (dialog.kind === 'line') {
-    const d = dialog as LineDialog
-    const speaker = d.speakerId ? findSpeaker(speakers, d.speakerId) : null
-    const prefix = speaker ? `${speaker.name}: ` : ''
-    return (prefix + d.text).slice(0, 48) || '(empty)'
-  }
-  if (dialog.kind === 'choice') {
-    const d = dialog as ChoiceDialog
-    return d.text.slice(0, 48) || `${d.options.length} options`
-  }
-  if (dialog.kind === 'conditional') {
-    const cd = dialog as ConditionalDialog
-    return `if var ${cd.condition.op} ${cd.condition.value}`
-  }
-  return ''
 }
 
 export const DialogGraphNode = memo(function DialogGraphNode({ data, id }: NodeProps) {
@@ -64,6 +46,7 @@ export const DialogGraphNode = memo(function DialogGraphNode({ data, id }: NodeP
       ? findSpeaker(speakers, (liveDialog as LineDialog).speakerId!)
       : null
   const speakerColor = lineSpeaker?.color ?? NARRATION_COLOR
+  const previewText = getDialogPreviewText(liveDialog, speakers)
 
   const select = usePlannerStore(s => s.select)
   const deleteDialogAction = usePlannerStore(s => s.deleteDialog)
@@ -123,8 +106,11 @@ export const DialogGraphNode = memo(function DialogGraphNode({ data, id }: NodeP
       <Handle type="target" position={Position.Top} />
       <div className="node-header">
         <span className="kind-icon">{kindIcon(dialog.kind)}</span>
-        <span className="node-preview" style={{ color: liveDialog.kind === 'line' ? speakerColor : undefined }}>
-          {preview(liveDialog, speakers)}
+        <span
+          className="node-preview"
+          style={{ color: liveDialog.kind === 'line' ? speakerColor : undefined }}
+        >
+          {previewText}
         </span>
         <div className="node-actions">
           <button

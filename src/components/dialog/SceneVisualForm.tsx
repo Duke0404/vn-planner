@@ -11,6 +11,7 @@ export function SceneVisualForm({ selection }: Props) {
   const updateSceneTags = usePlannerStore(s => s.updateSceneTags)
   const deleteScene = usePlannerStore(s => s.deleteScene)
   const updateVisualName = usePlannerStore(s => s.updateVisualName)
+  const updateVisualDescription = usePlannerStore(s => s.updateVisualDescription)
   const updateVisualTags = usePlannerStore(s => s.updateVisualTags)
   const deleteVisual = usePlannerStore(s => s.deleteVisual)
   const pushHistory = usePlannerStore(s => s.pushHistory)
@@ -71,6 +72,18 @@ export function SceneVisualForm({ selection }: Props) {
           onChange={e => updateVisualName(selection.sceneId, selection.visualId, e.target.value)}
           onBlur={pushHistory}
           placeholder="Visual name…"
+        />
+      </div>
+      <div className="form-row">
+        <label>Description</label>
+        <textarea
+          value={visual.description}
+          onChange={e =>
+            updateVisualDescription(selection.sceneId, selection.visualId, e.target.value)
+          }
+          onBlur={pushHistory}
+          placeholder="Visual description…"
+          rows={3}
         />
       </div>
       <div className="form-row">

@@ -7,17 +7,25 @@ import {
   LineDialog,
   ChoiceDialog,
   ConditionalDialog,
-  isLeafDialog,
 } from '../model/nodes'
+import { estimateMetaHeight } from './visualMetaLayout'
+import {
+  DIALOG_WIDTH,
+  DIALOG_MIN_HEIGHT,
+  estimateDialogHeight,
+} from './dialogNodeLayout'
+import type { Speaker } from '../model/speakers'
 
 const NODE_WIDTH = 240
 const NODE_HEIGHT = 80
-const DIALOG_WIDTH = 240
-const DIALOG_HEIGHT = 72
-const DIALOG_ADD_OVERFLOW = 10
 const HEADER_HEIGHT = 44
 const GROUP_PADDING = 20
 const GROUP_GAP = 24
+
+function collapsedGroupHeight(metaHeight: number): number {
+  if (metaHeight === 0) return NODE_HEIGHT
+  return HEADER_HEIGHT + metaHeight
+}
 
 export type FlowNodeData =
   | { nodeType: 'scene'; scene: Scene }
@@ -134,12 +142,21 @@ function buildSceneColumns(scenes: Scene[], seriesParents: Map<string, string>):
 function layoutDialogs(
   visual: Visual,
   sceneId: string,
+  speakers: Speaker[],
 ): { nodes: FlowNode[]; edges: FlowEdge[]; bounds: Bounds } {
+  const metaHeight = estimateMetaHeight(visual.description, visual.tagIds.length)
+  const dialogHeight = (d: Dialog) => estimateDialogHeight(d, speakers)
+
   if (!visual.dialogs.length) {
     return {
       nodes: [],
       edges: [],
-      bounds: { x: 0, y: 0, width: NODE_WIDTH, height: DIALOG_HEIGHT + GROUP_PADDING },
+      bounds: {
+        x: 0,
+        y: 0,
+        width: NODE_WIDTH,
+        height: HEADER_HEIGHT + metaHeight + DIALOG_MIN_HEIGHT + GROUP_PADDING,
+      },
     }
   }
 
@@ -155,8 +172,7 @@ function layoutDialogs(
   })
 
   for (const d of visual.dialogs) {
-    const height = isLeafDialog(d) ? DIALOG_HEIGHT + DIALOG_ADD_OVERFLOW : DIALOG_HEIGHT
-    g.setNode(d.id, { width: DIALOG_WIDTH, height })
+    g.setNode(d.id, { width: DIALOG_WIDTH, height: dialogHeight(d) })
   }
 
   for (const d of visual.dialogs) {
@@ -169,12 +185,13 @@ function layoutDialogs(
 
   const rawPositions = visual.dialogs.map(d => {
     const pos = g.node(d.id)
+    const height = dialogHeight(d)
     return {
       id: d.id,
       x: pos.x - DIALOG_WIDTH / 2,
-      y: pos.y - DIALOG_HEIGHT / 2,
+      y: pos.y - height / 2,
       width: DIALOG_WIDTH,
-      height: DIALOG_HEIGHT,
+      height,
     }
   })
 
@@ -188,15 +205,16 @@ function layoutDialogs(
   const visualWidth = Math.max(NODE_WIDTH, contentWidth + GROUP_PADDING * 2)
   const visualContentHeight = contentHeight + GROUP_PADDING * 2
 
-  // Center dialog column horizontally; stack from header downward
+  // Center dialog column horizontally; stack from header + meta downward
   const offsetX = (visualWidth - contentWidth) / 2 - minX
-  const offsetY = HEADER_HEIGHT + GROUP_PADDING - minY
+  const offsetY = HEADER_HEIGHT + metaHeight + GROUP_PADDING - minY
 
   const nodes: FlowNode[] = []
   const edges: FlowEdge[] = []
 
   for (const d of visual.dialogs) {
     const raw = rawPositions.find(p => p.id === d.id)!
+    const height = raw.height
     nodes.push({
       id: d.id,
       type: 'dialogNode',
@@ -209,6 +227,9 @@ function layoutDialogs(
       extent: 'parent',
       draggable: false,
       selectable: true,
+      width: DIALOG_WIDTH,
+      height,
+      style: { width: DIALOG_WIDTH, height },
     } as FlowNode)
   }
 
@@ -271,7 +292,7 @@ function layoutDialogs(
     x: 0,
     y: 0,
     width: visualWidth,
-    height: HEADER_HEIGHT + visualContentHeight,
+    height: HEADER_HEIGHT + metaHeight + visualContentHeight,
   }
 
   return { nodes, edges, bounds }
@@ -280,6 +301,7 @@ function layoutDialogs(
 function layoutVisualsInScene(
   scene: Scene,
   expandedVisualIds: Set<string>,
+  speakers: Speaker[],
 ): {
   visualPlacements: {
     visual: Visual
@@ -295,14 +317,20 @@ function layoutVisualsInScene(
   const visualLayouts = scene.visuals.map(visual => {
     const vExpanded = expandedVisualIds.has(visual.id)
     if (vExpanded) {
-      return { visual, layoutResult: layoutDialogs(visual, scene.id) }
+      return { visual, layoutResult: layoutDialogs(visual, scene.id, speakers) }
     }
+    const metaHeight = estimateMetaHeight(visual.description, visual.tagIds.length)
     return {
       visual,
       layoutResult: {
         nodes: [] as FlowNode[],
         edges: [] as FlowEdge[],
-        bounds: { x: 0, y: 0, width: NODE_WIDTH, height: NODE_HEIGHT },
+        bounds: {
+          x: 0,
+          y: 0,
+          width: NODE_WIDTH,
+          height: collapsedGroupHeight(metaHeight),
+        },
       },
     }
   })
@@ -333,8 +361,10 @@ function layoutVisualsInScene(
   let columnX = GROUP_PADDING
   let maxColumnStackHeight = 0
 
+  const sceneMetaHeight = estimateMetaHeight(undefined, scene.tagIds.length)
+
   for (const column of columns) {
-    let y = HEADER_HEIGHT + GROUP_PADDING
+    let y = HEADER_HEIGHT + GROUP_PADDING + sceneMetaHeight
     const columnWidth = Math.max(
       ...column.map(v => layoutByVisualId.get(v.id)!.bounds.width),
     )
@@ -379,6 +409,7 @@ export function computeGraphLayout(
   scenes: Scene[],
   expandedSceneIds: Set<string>,
   expandedVisualIds: Set<string>,
+  speakers: Speaker[] = [],
 ): GraphLayout {
   const nodes: FlowNode[] = []
   const edges: FlowEdge[] = []
@@ -391,21 +422,23 @@ export function computeGraphLayout(
     const expanded = expandedSceneIds.has(scene.id)
 
     if (!expanded) {
+      const metaHeight = estimateMetaHeight(undefined, scene.tagIds.length)
       return {
         scene,
         width: NODE_WIDTH,
-        height: NODE_HEIGHT,
+        height: collapsedGroupHeight(metaHeight),
         visualPlacements: null as ReturnType<typeof layoutVisualsInScene>['visualPlacements'] | null,
       }
     }
 
     const { visualPlacements, sceneWidth, sceneContentHeight } =
-      layoutVisualsInScene(scene, expandedVisualIds)
+      layoutVisualsInScene(scene, expandedVisualIds, speakers)
+    const sceneMetaHeight = estimateMetaHeight(undefined, scene.tagIds.length)
 
     return {
       scene,
       width: sceneWidth,
-      height: HEADER_HEIGHT + sceneContentHeight,
+      height: HEADER_HEIGHT + sceneMetaHeight + sceneContentHeight,
       visualPlacements,
     }
   })

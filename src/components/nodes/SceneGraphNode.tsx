@@ -76,8 +76,10 @@ export const SceneGraphNode = memo(function SceneGraphNode({ data, width, height
         </div>
       </div>
       {scene.tagIds.length > 0 && (
-        <div className="group-node-tags">
-          <TagChipList tagIds={scene.tagIds} />
+        <div className="group-node-meta">
+          <div className="group-node-tags">
+            <TagChipList tagIds={scene.tagIds} />
+          </div>
         </div>
       )}
       <div className="group-node-body" aria-hidden="true" />

@@ -299,13 +299,40 @@ body {
   min-height: 0;
   pointer-events: none;
 }
+.group-node-meta {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+}
 .group-node-tags {
   display: flex;
   flex-wrap: wrap;
   gap: 3px;
-  padding: 4px 12px;
+  margin: 0;
+  padding: 0;
   flex-shrink: 0;
   pointer-events: none;
+}
+.group-node-description {
+  margin: 0;
+  padding: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.45;
+  white-space: pre-line;
+}
+.group-node-description.lines-1 {
+  display: block;
+  overflow: hidden;
+}
+.group-node-description.lines-2 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 
 .scene-node { background: var(--bg-1); border-color: #3d5a96; }
@@ -326,7 +353,9 @@ body {
   position: relative;
   overflow: visible;
   background: var(--bg-3);
-  width: 240px;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
   box-sizing: border-box;
   padding: 10px 12px;
 }
@@ -352,7 +381,7 @@ body {
 
 .node-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
 }
 .node-title {
@@ -367,13 +396,10 @@ body {
   flex: 1;
   font-size: 12px;
   color: var(--text-dim);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.node-visual-count {
-  font-size: 11px;
-  color: var(--text-muted);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-width: 0;
 }
 .node-actions {
   display: flex;
@@ -382,6 +408,11 @@ body {
   transition: opacity 0.1s;
   position: relative;
   overflow: visible;
+  flex-shrink: 0;
+}
+.node-visual-count {
+  font-size: 11px;
+  color: var(--text-muted);
 }
 .node-add-action {
   position: relative;
@@ -1042,6 +1073,8 @@ button.tag-chip:hover { opacity: 0.85; }
   overflow: visible !important;
 }
 .react-flow__node:has(.dialog-node) > div {
+  width: 100% !important;
+  height: 100% !important;
   overflow: visible !important;
 }
 .react-flow__background { background: var(--bg) !important; }

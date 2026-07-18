@@ -137,6 +137,7 @@ interface PlannerActions {
   addVisual: (sceneId: string) => void
   deleteVisual: (sceneId: string, visualId: string) => void
   updateVisualName: (sceneId: string, visualId: string, name: string) => void
+  updateVisualDescription: (sceneId: string, visualId: string, description: string) => void
   updateVisualTags: (sceneId: string, visualId: string, tagIds: string[]) => void
 
   addDialogParallel: (sceneId: string, visualId: string, kind: DialogKind) => void
@@ -410,6 +411,14 @@ export const usePlannerStore = create<PlannerState & PlannerActions>()(
         const { project } = get()
         const scenes = updateVisual(project.scenes, sceneId, visualId, {
           name,
+        } as Partial<import('../model/nodes').Visual>)
+        set({ project: { ...project, scenes } })
+      },
+
+      updateVisualDescription(sceneId, visualId, description) {
+        const { project } = get()
+        const scenes = updateVisual(project.scenes, sceneId, visualId, {
+          description,
         } as Partial<import('../model/nodes').Visual>)
         set({ project: { ...project, scenes } })
       },

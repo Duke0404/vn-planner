@@ -168,11 +168,13 @@ export function dialogFromJSON(raw: Record<string, unknown>): Dialog {
 
 export class Visual extends PlannerNode {
   name: string
+  description: string
   dialogs: Dialog[]
 
   constructor(id?: string) {
     super(id)
     this.name = 'Visual'
+    this.description = ''
     this.dialogs = []
   }
 
@@ -181,6 +183,7 @@ export class Visual extends PlannerNode {
       id: this.id,
       tagIds: this.tagIds,
       name: this.name,
+      description: this.description,
       dialogs: this.dialogs.map(d => d.toJSON()),
     }
   }
@@ -189,6 +192,7 @@ export class Visual extends PlannerNode {
     const v = new Visual(raw.id as string)
     v.tagIds = (raw.tagIds as string[]) ?? []
     v.name = (raw.name as string) ?? 'Visual'
+    v.description = (raw.description as string) ?? ''
     v.dialogs = ((raw.dialogs as Record<string, unknown>[]) ?? []).map(dialogFromJSON)
     return v
   }
