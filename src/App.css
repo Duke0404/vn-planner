@@ -73,7 +73,23 @@ body {
 
 .toolbar-right {
   display: flex;
+  align-items: center;
   gap: 6px;
+}
+
+.toolbar-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.toolbar-toggle input {
+  accent-color: var(--accent);
+  cursor: pointer;
 }
 
 .main-content {

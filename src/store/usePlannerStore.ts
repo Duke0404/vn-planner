@@ -38,6 +38,13 @@ import {
 } from '../lib/variableTree'
 import { removeTag, updateTag, addSubTag } from '../lib/tagTree'
 import { sanitizeUiState } from './selectors'
+import {
+  decryptExportPayload,
+  encryptExportPayload,
+  ENCRYPTED_EXPORT_FORMAT,
+  getExportSecret,
+  isEncryptedExportFile,
+} from '../lib/exportCrypto'
 
 export type Selection =
   | { type: 'scene'; sceneId: string }
@@ -65,6 +72,7 @@ interface PlannerState {
   linkPickMode: LinkPickMode | null
   contextMenu: ContextMenuTarget | null
   configOpen: boolean
+  encryptExportImport: boolean
 }
 
 const MAX_HISTORY = 20
@@ -178,8 +186,9 @@ interface PlannerActions {
 
   setConfigOpen: (open: boolean) => void
 
-  exportProject: () => void
-  importProject: (json: string) => void
+  setEncryptExportImport: (enabled: boolean) => void
+  exportProject: () => Promise<void>
+  importProject: (text: string) => Promise<void>
 }
 
 export const usePlannerStore = create<PlannerState & PlannerActions>()(
@@ -193,6 +202,7 @@ export const usePlannerStore = create<PlannerState & PlannerActions>()(
       linkPickMode: null,
       contextMenu: null,
       configOpen: false,
+      encryptExportImport: true,
 
       pushHistory() {
         const { project, history } = get()
@@ -643,27 +653,70 @@ export const usePlannerStore = create<PlannerState & PlannerActions>()(
         set({ configOpen: open })
       },
 
-      exportProject() {
-        const { project } = get()
-        const data = JSON.stringify(projectToJSON(project), null, 2)
-        const blob = new Blob([data], { type: 'application/json' })
+      setEncryptExportImport(enabled) {
+        set({ encryptExportImport: enabled })
+      },
+
+      async exportProject() {
+        const { project, encryptExportImport } = get()
+        const json = JSON.stringify(projectToJSON(project), null, 2)
+
+        let fileBody: string
+        let fileName = 'vn-project.json'
+
+        if (encryptExportImport) {
+          const secret = getExportSecret()
+          if (!secret) {
+            alert('EXPORT_SECRET is not set. Add it to your .env file to export encrypted projects.')
+            return
+          }
+          const payload = await encryptExportPayload(json, secret)
+          fileBody = JSON.stringify({ format: ENCRYPTED_EXPORT_FORMAT, payload }, null, 2)
+          fileName = 'vn-project.enc.json'
+        } else {
+          fileBody = json
+        }
+
+        const blob = new Blob([fileBody], { type: 'application/json' })
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
-        a.download = 'vn-project.json'
+        a.download = fileName
         a.click()
         URL.revokeObjectURL(url)
       },
 
-      importProject(json) {
+      async importProject(text) {
         try {
-          const raw = JSON.parse(json) as Record<string, unknown>
+          const parsed: unknown = JSON.parse(text)
+          const { encryptExportImport } = get()
+          let projectJson: string
+
+          if (isEncryptedExportFile(parsed)) {
+            if (!encryptExportImport) {
+              alert('This file is encrypted. Enable "Encrypt export/import" to import it.')
+              return
+            }
+            const secret = getExportSecret()
+            if (!secret) {
+              alert('This file is encrypted. Set EXPORT_SECRET in your .env file to import it.')
+              return
+            }
+            projectJson = await decryptExportPayload(parsed.payload, secret)
+          } else if (encryptExportImport) {
+            alert('Encrypted import is enabled, but this file is not encrypted.')
+            return
+          } else {
+            projectJson = text
+          }
+
+          const raw = JSON.parse(projectJson) as Record<string, unknown>
           const project = projectFromJSON(raw)
           get().pushHistory()
           const sanitized = sanitizeUiState(project, [], [], null)
           set({ project, ...sanitized })
         } catch {
-          alert('Invalid project file.')
+          alert('Invalid or unreadable project file.')
         }
       },
     }),
@@ -674,6 +727,7 @@ export const usePlannerStore = create<PlannerState & PlannerActions>()(
         selection: state.selection,
         expandedSceneIds: state.expandedSceneIds,
         expandedVisualIds: state.expandedVisualIds,
+        encryptExportImport: state.encryptExportImport,
       }),
       merge: (persisted, current) => {
         try {
@@ -682,6 +736,7 @@ export const usePlannerStore = create<PlannerState & PlannerActions>()(
             selection?: Selection | null
             expandedSceneIds?: string[]
             expandedVisualIds?: string[]
+            encryptExportImport?: boolean
           }
           const project = projectFromJSON(saved.project)
           const sanitized = sanitizeUiState(
@@ -690,7 +745,12 @@ export const usePlannerStore = create<PlannerState & PlannerActions>()(
             saved.expandedVisualIds ?? [],
             saved.selection ?? null,
           )
-          return { ...current, project, ...sanitized }
+          return {
+            ...current,
+            project,
+            ...sanitized,
+            encryptExportImport: saved.encryptExportImport ?? true,
+          }
         } catch {
           return current
         }

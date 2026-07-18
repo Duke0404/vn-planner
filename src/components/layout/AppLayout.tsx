@@ -13,6 +13,8 @@ export function AppLayout() {
   const setConfigOpen = usePlannerStore(s => s.setConfigOpen)
   const exportProject = usePlannerStore(s => s.exportProject)
   const importProject = usePlannerStore(s => s.importProject)
+  const encryptExportImport = usePlannerStore(s => s.encryptExportImport)
+  const setEncryptExportImport = usePlannerStore(s => s.setEncryptExportImport)
   const selection = usePlannerStore(s => s.selection)
   const fileRef = useRef<HTMLInputElement>(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -28,7 +30,7 @@ export function AppLayout() {
       const reader = new FileReader()
       reader.onload = ev => {
         if (typeof ev.target?.result === 'string') {
-          importProject(ev.target.result)
+          void importProject(ev.target.result)
         }
       }
       reader.readAsText(file)
@@ -53,9 +55,17 @@ export function AppLayout() {
           <button className="btn" onClick={() => setConfigOpen(true)}>⚙ Config</button>
         </div>
         <div className="toolbar-right">
-          <button className="btn" onClick={exportProject}>Export ↓</button>
+          <label className="toolbar-toggle" title="Uses EXPORT_SECRET from .env">
+            <input
+              type="checkbox"
+              checked={encryptExportImport}
+              onChange={e => setEncryptExportImport(e.target.checked)}
+            />
+            <span>Encrypt export/import</span>
+          </label>
+          <button className="btn" onClick={() => void exportProject()}>Export ↓</button>
           <button className="btn" onClick={handleImport}>Import ↑</button>
-          <input ref={fileRef} type="file" accept=".json" style={{ display: 'none' }} onChange={handleFile} />
+          <input ref={fileRef} type="file" accept=".json,application/json" style={{ display: 'none' }} onChange={handleFile} />
         </div>
       </header>
 
