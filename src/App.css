@@ -397,9 +397,37 @@ body {
   font-size: 12px;
   color: var(--text-dim);
   line-height: 1.45;
-  white-space: pre-wrap;
   word-break: break-word;
   min-width: 0;
+}
+.node-preview-markdown {
+  display: inline;
+  line-height: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+.node-preview-markdown .md-p {
+  display: inline;
+}
+.node-preview-markdown strong {
+  font-weight: 700;
+}
+.node-preview-markdown em {
+  font-style: italic;
+}
+.node-preview-markdown code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.92em;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: rgb(255 255 255 / 8%);
+}
+.node-preview-markdown a {
+  color: var(--accent-hover);
+  text-decoration: underline;
+}
+.node-preview-markdown del {
+  opacity: 0.75;
 }
 .node-actions {
   display: flex;

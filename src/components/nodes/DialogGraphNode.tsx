@@ -10,7 +10,8 @@ import { LineDialog, isLeafDialog } from '../../model/nodes'
 import { findSpeaker } from '../../lib/speakerTree'
 import { NARRATION_COLOR } from '../../model/colors'
 import { TagChipList } from '../shared/TagChipList'
-import { getDialogPreviewText } from '../../lib/dialogNodeLayout'
+import { getDialogMarkdownSource, getDialogPreviewText } from '../../lib/dialogNodeLayout'
+import { MarkdownText } from '../shared/MarkdownText'
 
 function kindIcon(kind: 'line' | 'choice' | 'conditional') {
   if (kind === 'line') return '💬'
@@ -46,7 +47,10 @@ export const DialogGraphNode = memo(function DialogGraphNode({ data, id }: NodeP
       ? findSpeaker(speakers, (liveDialog as LineDialog).speakerId!)
       : null
   const speakerColor = lineSpeaker?.color ?? NARRATION_COLOR
-  const previewText = getDialogPreviewText(liveDialog, speakers)
+  const markdownSource = getDialogMarkdownSource(liveDialog)
+  const fallbackPreview = getDialogPreviewText(liveDialog, speakers)
+  const speakerPrefix =
+    liveDialog.kind === 'line' && lineSpeaker ? `${lineSpeaker.name}: ` : ''
 
   const select = usePlannerStore(s => s.select)
   const deleteDialogAction = usePlannerStore(s => s.deleteDialog)
@@ -106,12 +110,19 @@ export const DialogGraphNode = memo(function DialogGraphNode({ data, id }: NodeP
       <Handle type="target" position={Position.Top} />
       <div className="node-header">
         <span className="kind-icon">{kindIcon(dialog.kind)}</span>
-        <span
+        <div
           className="node-preview"
           style={{ color: liveDialog.kind === 'line' ? speakerColor : undefined }}
         >
-          {previewText}
-        </span>
+          {markdownSource ? (
+            <>
+              {speakerPrefix}
+              <MarkdownText className="node-preview-markdown">{markdownSource}</MarkdownText>
+            </>
+          ) : (
+            fallbackPreview
+          )}
+        </div>
         <div className="node-actions">
           <button
             type="button"

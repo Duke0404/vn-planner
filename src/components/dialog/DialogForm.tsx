@@ -114,7 +114,9 @@ export function DialogForm({ selection }: Props) {
               }
               onBlur={pushHistory}
               placeholder={
-                dialog.kind === 'choice' ? 'Prompt text (optional)…' : 'Dialog text…'
+                dialog.kind === 'choice'
+                  ? 'Prompt text (optional). Markdown: **bold**, *italic*, `code`…'
+                  : 'Dialog text. Markdown: **bold**, *italic*, `code`, [link](url)…'
               }
               rows={4}
             />
