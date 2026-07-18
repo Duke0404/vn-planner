@@ -47,6 +47,23 @@ interface Bounds {
   height: number
 }
 
+/** Fan-out metadata for multiple edges sharing the same source and target. */
+function annotateParallelEdges(edges: FlowEdge[]): void {
+  const groups = new Map<string, FlowEdge[]>()
+  for (const edge of edges) {
+    const key = `${edge.source}\0${edge.target}`
+    const group = groups.get(key)
+    if (group) group.push(edge)
+    else groups.set(key, [edge])
+  }
+  for (const group of groups.values()) {
+    if (group.length <= 1) continue
+    group.forEach((edge, index) => {
+      edge.data = { ...(edge.data as object), parallelIndex: index, parallelTotal: group.length }
+    })
+  }
+}
+
 function buildDialogToVisualMap(scene: Scene): Map<string, string> {
   const map = new Map<string, string>()
   for (const visual of scene.visuals) {
@@ -57,38 +74,218 @@ function buildDialogToVisualMap(scene: Scene): Map<string, string> {
   return map
 }
 
-function findSeriesVisualParents(scene: Scene): Map<string, string> {
+interface VisualLinkAnalysis {
+  seriesParent: Map<string, string>
+  parallelParent: Map<string, string>
+}
+
+interface VisualTreeNode {
+  visual: Visual
+  parallelChildren: VisualTreeNode[]
+  seriesChild: VisualTreeNode | null
+}
+
+type VisualLayoutResult = ReturnType<typeof layoutDialogs>
+
+type VisualPlacement = {
+  visual: Visual
+  x: number
+  y: number
+  width: number
+  height: number
+  layoutResult: VisualLayoutResult
+}
+
+function analyzeVisualLinks(scene: Scene): VisualLinkAnalysis {
   const dialogToVisual = buildDialogToVisualMap(scene)
-  const parents = new Map<string, string>()
+  const seriesParent = new Map<string, string>()
+  const parallelParent = new Map<string, string>()
 
   for (const visual of scene.visuals) {
     for (const dialog of visual.dialogs) {
-      for (const nextId of dialog.getOutgoingIds()) {
-        if (!nextId) continue
-        const targetVisualId = dialogToVisual.get(nextId)
-        if (targetVisualId && targetVisualId !== visual.id) {
-          parents.set(targetVisualId, visual.id)
+      if (dialog.kind === 'choice') {
+        const cd = dialog as ChoiceDialog
+        const crossVisualTargets = new Set<string>()
+        for (const opt of cd.options) {
+          if (!opt.nextId) continue
+          const targetVisualId = dialogToVisual.get(opt.nextId)
+          if (targetVisualId && targetVisualId !== visual.id) {
+            crossVisualTargets.add(targetVisualId)
+          }
+        }
+        if (crossVisualTargets.size >= 2) {
+          for (const targetVisualId of crossVisualTargets) {
+            parallelParent.set(targetVisualId, visual.id)
+            seriesParent.delete(targetVisualId)
+          }
+        } else if (crossVisualTargets.size === 1) {
+          const targetVisualId = [...crossVisualTargets][0]
+          if (!parallelParent.has(targetVisualId)) {
+            seriesParent.set(targetVisualId, visual.id)
+          }
+        }
+      } else if (dialog.kind === 'conditional') {
+        const cond = dialog as ConditionalDialog
+        const crossVisualTargets = new Set<string>()
+        if (cond.trueNextId) {
+          const targetVisualId = dialogToVisual.get(cond.trueNextId)
+          if (targetVisualId && targetVisualId !== visual.id) {
+            crossVisualTargets.add(targetVisualId)
+          }
+        }
+        if (cond.falseNextId) {
+          const targetVisualId = dialogToVisual.get(cond.falseNextId)
+          if (targetVisualId && targetVisualId !== visual.id) {
+            crossVisualTargets.add(targetVisualId)
+          }
+        }
+        if (crossVisualTargets.size >= 2) {
+          for (const targetVisualId of crossVisualTargets) {
+            parallelParent.set(targetVisualId, visual.id)
+            seriesParent.delete(targetVisualId)
+          }
+        } else if (crossVisualTargets.size === 1) {
+          const targetVisualId = [...crossVisualTargets][0]
+          if (!parallelParent.has(targetVisualId)) {
+            seriesParent.set(targetVisualId, visual.id)
+          }
+        }
+      } else if (dialog.kind === 'line') {
+        const ld = dialog as LineDialog
+        if (!ld.nextId) continue
+        const targetVisualId = dialogToVisual.get(ld.nextId)
+        if (targetVisualId && targetVisualId !== visual.id && !parallelParent.has(targetVisualId)) {
+          seriesParent.set(targetVisualId, visual.id)
         }
       }
     }
   }
 
-  return parents
+  return { seriesParent, parallelParent }
 }
 
-function buildVisualColumns(scene: Scene, seriesParents: Map<string, string>): Visual[][] {
-  const roots = scene.visuals.filter(v => !seriesParents.has(v.id))
+function buildVisualTrees(
+  scene: Scene,
+  seriesParent: Map<string, string>,
+  parallelParent: Map<string, string>,
+): VisualTreeNode[] {
+  const visited = new Set<string>()
 
-  function buildColumn(root: Visual): Visual[] {
-    const chain: Visual[] = [root]
-    const children = scene.visuals.filter(v => seriesParents.get(v.id) === root.id)
-    for (const child of children) {
-      chain.push(...buildColumn(child))
-    }
-    return chain
+  function buildNode(visual: Visual): VisualTreeNode {
+    visited.add(visual.id)
+    const parallelChildren = scene.visuals
+      .filter(v => parallelParent.get(v.id) === visual.id)
+      .map(v => buildNode(v))
+
+    const seriesChildVisual = scene.visuals.find(
+      v => seriesParent.get(v.id) === visual.id && !parallelParent.has(v.id),
+    )
+    const seriesChild = seriesChildVisual ? buildNode(seriesChildVisual) : null
+
+    return { visual, parallelChildren, seriesChild }
   }
 
-  return roots.map(buildColumn)
+  const trees = scene.visuals
+    .filter(v => !seriesParent.has(v.id) && !parallelParent.has(v.id))
+    .map(v => buildNode(v))
+
+  for (const visual of scene.visuals) {
+    if (!visited.has(visual.id)) {
+      trees.push(buildNode(visual))
+    }
+  }
+
+  return trees
+}
+
+function measureVisualSubtree(
+  node: VisualTreeNode,
+  layoutByVisualId: Map<string, VisualLayoutResult>,
+): { width: number; height: number } {
+  const self = layoutByVisualId.get(node.visual.id)!.bounds
+
+  let width = self.width
+  let height = self.height
+
+  if (node.parallelChildren.length > 0) {
+    const childMeasures = node.parallelChildren.map(child =>
+      measureVisualSubtree(child, layoutByVisualId),
+    )
+    const rowWidth =
+      childMeasures.reduce((sum, m) => sum + m.width, 0) +
+      GROUP_GAP * Math.max(0, childMeasures.length - 1)
+    const rowHeight = Math.max(...childMeasures.map(m => m.height))
+    width = Math.max(width, rowWidth)
+    height += GROUP_GAP + rowHeight
+  }
+
+  if (node.seriesChild) {
+    const childMeasure = measureVisualSubtree(node.seriesChild, layoutByVisualId)
+    width = Math.max(width, childMeasure.width)
+    height += GROUP_GAP + childMeasure.height
+  }
+
+  return { width, height }
+}
+
+function placeVisualSubtree(
+  node: VisualTreeNode,
+  x: number,
+  y: number,
+  layoutByVisualId: Map<string, VisualLayoutResult>,
+  out: VisualPlacement[],
+): number {
+  const layoutResult = layoutByVisualId.get(node.visual.id)!
+  const width = layoutResult.bounds.width
+  const height = layoutResult.bounds.height
+  const centerX = x + width / 2
+
+  out.push({
+    visual: node.visual,
+    x,
+    y,
+    width,
+    height,
+    layoutResult,
+  })
+
+  let bottom = y + height
+
+  if (node.parallelChildren.length > 0) {
+    const childMeasures = node.parallelChildren.map(child =>
+      measureVisualSubtree(child, layoutByVisualId),
+    )
+    const rowWidth =
+      childMeasures.reduce((sum, m) => sum + m.width, 0) +
+      GROUP_GAP * Math.max(0, node.parallelChildren.length - 1)
+    let rowX = centerX - rowWidth / 2
+    const rowY = bottom + GROUP_GAP
+    let rowBottom = rowY
+
+    for (let i = 0; i < node.parallelChildren.length; i++) {
+      rowBottom = Math.max(
+        rowBottom,
+        placeVisualSubtree(node.parallelChildren[i], rowX, rowY, layoutByVisualId, out),
+      )
+      rowX += childMeasures[i].width + GROUP_GAP
+    }
+
+    bottom = rowBottom
+  }
+
+  if (node.seriesChild) {
+    const childLayout = layoutByVisualId.get(node.seriesChild.visual.id)!
+    const childX = centerX - childLayout.bounds.width / 2
+    bottom = placeVisualSubtree(
+      node.seriesChild,
+      childX,
+      bottom + GROUP_GAP,
+      layoutByVisualId,
+      out,
+    )
+  }
+
+  return bottom
 }
 
 function buildDialogToSceneMap(scenes: Scene[]): Map<string, string> {
@@ -259,7 +456,14 @@ function layoutDialogs(
             source: d.id,
             target: opt.nextId,
             label: opt.label,
-            type: 'smoothstep',
+            type: 'dialogEdge',
+            data: {
+              sourceDialogId: d.id,
+              targetDialogId: opt.nextId,
+              optionId: opt.id,
+              visualId: visual.id,
+              sceneId,
+            },
           })
         }
       }
@@ -271,8 +475,15 @@ function layoutDialogs(
           source: d.id,
           target: cond.trueNextId,
           label: 'true',
-          type: 'smoothstep',
+          type: 'dialogEdge',
           style: { stroke: '#22c55e' },
+          data: {
+            sourceDialogId: d.id,
+            targetDialogId: cond.trueNextId,
+            branch: 'true',
+            visualId: visual.id,
+            sceneId,
+          },
         })
       }
       if (cond.falseNextId) {
@@ -281,12 +492,21 @@ function layoutDialogs(
           source: d.id,
           target: cond.falseNextId,
           label: 'false',
-          type: 'smoothstep',
+          type: 'dialogEdge',
           style: { stroke: '#ef4444' },
+          data: {
+            sourceDialogId: d.id,
+            targetDialogId: cond.falseNextId,
+            branch: 'false',
+            visualId: visual.id,
+            sceneId,
+          },
         })
       }
     }
   }
+
+  annotateParallelEdges(edges)
 
   const bounds: Bounds = {
     x: 0,
@@ -346,57 +566,38 @@ function layoutVisualsInScene(
   const layoutByVisualId = new Map(
     visualLayouts.map(({ visual, layoutResult }) => [visual.id, layoutResult]),
   )
-  const seriesParents = findSeriesVisualParents(scene)
-  const columns = buildVisualColumns(scene, seriesParents)
+  const { seriesParent, parallelParent } = analyzeVisualLinks(scene)
+  const rootTrees = buildVisualTrees(scene, seriesParent, parallelParent)
 
-  const visualPlacements: {
-    visual: Visual
-    x: number
-    y: number
-    width: number
-    height: number
-    layoutResult: ReturnType<typeof layoutDialogs>
-  }[] = []
+  const visualPlacements: VisualPlacement[] = []
 
   let columnX = GROUP_PADDING
   let maxColumnStackHeight = 0
 
   const sceneMetaHeight = estimateMetaHeight(undefined, scene.tagIds.length)
+  const startY = HEADER_HEIGHT + GROUP_PADDING + sceneMetaHeight
 
-  for (const column of columns) {
-    let y = HEADER_HEIGHT + GROUP_PADDING + sceneMetaHeight
-    const columnWidth = Math.max(
-      ...column.map(v => layoutByVisualId.get(v.id)!.bounds.width),
-    )
-
-    for (const visual of column) {
-      const layoutResult = layoutByVisualId.get(visual.id)!
-      visualPlacements.push({
-        visual,
-        x: columnX + (columnWidth - layoutResult.bounds.width) / 2,
-        y,
-        width: layoutResult.bounds.width,
-        height: layoutResult.bounds.height,
-        layoutResult,
-      })
-      y += layoutResult.bounds.height + GROUP_GAP
-    }
-
-    const stackHeight = y - (HEADER_HEIGHT + GROUP_PADDING)
-    maxColumnStackHeight = Math.max(maxColumnStackHeight, stackHeight)
-    columnX += columnWidth + GROUP_GAP
+  for (const rootTree of rootTrees) {
+    const measure = measureVisualSubtree(rootTree, layoutByVisualId)
+    const bottom = placeVisualSubtree(rootTree, columnX, startY, layoutByVisualId, visualPlacements)
+    maxColumnStackHeight = Math.max(maxColumnStackHeight, bottom - startY)
+    columnX += measure.width + GROUP_GAP
   }
 
-  const contentWidth =
-    columns.reduce((sum, column) => {
-      const width = Math.max(
-        ...column.map(v => layoutByVisualId.get(v.id)!.bounds.width),
-      )
-      return sum + width
-    }, 0) + GROUP_GAP * Math.max(0, columns.length - 1)
+  if (!visualPlacements.length) {
+    return {
+      visualPlacements: [],
+      sceneWidth: NODE_WIDTH + GROUP_PADDING * 2,
+      sceneContentHeight: GROUP_PADDING,
+    }
+  }
+
+  const minX = Math.min(...visualPlacements.map(p => p.x))
+  const maxX = Math.max(...visualPlacements.map(p => p.x + p.width))
+  const contentWidth = maxX - minX
   const sceneWidth = Math.max(NODE_WIDTH, contentWidth + GROUP_PADDING * 2)
   const sceneContentHeight = maxColumnStackHeight + GROUP_PADDING * 2
-  const offsetX = (sceneWidth - contentWidth) / 2 - GROUP_PADDING
+  const offsetX = (sceneWidth - contentWidth) / 2 - minX
 
   return {
     visualPlacements: visualPlacements.map(p => ({ ...p, x: p.x + offsetX })),

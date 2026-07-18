@@ -1,11 +1,38 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { EdgeProps } from '@xyflow/react'
-import { getSmoothStepPath, EdgeLabelRenderer, BaseEdge } from '@xyflow/react'
+import { getSmoothStepPath, EdgeLabelRenderer, BaseEdge, useEdges } from '@xyflow/react'
 import { usePlannerStore } from '../../store/usePlannerStore'
 import { AddKindMenu } from './AddKindMenu'
 import type { DialogKind } from '../../model/nodes'
 
+const PARALLEL_EDGE_SPREAD = 80
+
+interface DialogEdgeData {
+  sceneId?: string
+  visualId?: string
+  parallelIndex?: number
+  parallelTotal?: number
+}
+
+function resolveParallelMeta(
+  id: string,
+  source: string,
+  target: string,
+  edges: ReturnType<typeof useEdges>,
+  edgeData: DialogEdgeData | undefined,
+): { parallelIndex: number; parallelTotal: number } | null {
+  if (edgeData?.parallelTotal != null && edgeData.parallelTotal > 1 && edgeData.parallelIndex != null) {
+    return { parallelIndex: edgeData.parallelIndex, parallelTotal: edgeData.parallelTotal }
+  }
+  const siblings = edges.filter(edge => edge.source === source && edge.target === target)
+  if (siblings.length <= 1) return null
+  const parallelIndex = siblings.findIndex(edge => edge.id === id)
+  if (parallelIndex < 0) return null
+  return { parallelIndex, parallelTotal: siblings.length }
+}
+
 export function DialogEdge({
+  id,
   source,
   target,
   sourceX,
@@ -21,9 +48,19 @@ export function DialogEdge({
   const [showMenu, setShowMenu] = useState(false)
   const scenes = usePlannerStore(s => s.project.scenes)
   const addDialogSeries = usePlannerStore(s => s.addDialogSeries)
+  const edges = useEdges()
+  const edgeData = data as DialogEdgeData | undefined
+
+  const parallelMeta = useMemo(
+    () => resolveParallelMeta(id, source, target, edges, edgeData),
+    [id, source, target, edges, edgeData],
+  )
+
+  const offsetX = parallelMeta
+    ? PARALLEL_EDGE_SPREAD * (parallelMeta.parallelIndex - (parallelMeta.parallelTotal - 1) / 2)
+    : 0
 
   function resolveContext(): { sceneId: string; visualId: string } | null {
-    const edgeData = data as { sceneId?: string; visualId?: string } | undefined
     if (edgeData?.sceneId && edgeData?.visualId) {
       return { sceneId: edgeData.sceneId, visualId: edgeData.visualId }
     }
@@ -38,16 +75,16 @@ export function DialogEdge({
   }
 
   const [edgePath, labelX, labelY] = getSmoothStepPath({
-    sourceX,
+    sourceX: sourceX + offsetX,
     sourceY,
     sourcePosition,
-    targetX,
+    targetX: targetX + offsetX,
     targetY,
     targetPosition,
   })
 
-  const midX = (sourceX + targetX) / 2
-  const midY = (sourceY + targetY) / 2
+  const addX = labelX
+  const addY = label ? labelY + 18 : labelY
 
   function handleAdd(kind: DialogKind) {
     const ctx = resolveContext()
@@ -82,7 +119,7 @@ export function DialogEdge({
         <div
           style={{
             position: 'absolute',
-            transform: `translate(-50%, -50%) translate(${midX}px,${midY}px)`,
+            transform: `translate(-50%, -50%) translate(${addX}px,${addY}px)`,
             pointerEvents: 'all',
           }}
           className="edge-add-wrapper nodrag nopan"

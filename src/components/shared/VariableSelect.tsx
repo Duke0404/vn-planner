@@ -1,10 +1,14 @@
 import { usePlannerStore } from '../../store/usePlannerStore'
-import { flattenVariables } from '../../lib/variableTree'
+import { flattenVariables, getVariablePath, formatVariableRangeLabel } from '../../lib/variableTree'
 
 interface Props {
   value: string
   onChange: (id: string) => void
   placeholder?: string
+}
+
+function optionIndent(depth: number): string {
+  return depth > 0 ? '\u2003'.repeat(depth) : ''
 }
 
 export function VariableSelect({ value, onChange, placeholder = 'Select variable…' }: Props) {
@@ -18,11 +22,16 @@ export function VariableSelect({ value, onChange, placeholder = 'Select variable
       onChange={e => onChange(e.target.value)}
     >
       <option value="">{placeholder}</option>
-      {flat.map(v => (
-        <option key={v.id} value={v.id}>
-          {v.emoji ? `${v.emoji} ` : ''}{v.name}
-        </option>
-      ))}
+      {flat.map(v => {
+        const path = getVariablePath(variables, v.id) ?? [v]
+        const depth = path.length - 1
+        return (
+          <option key={v.id} value={v.id}>
+            {optionIndent(depth)}
+            {formatVariableRangeLabel(path)}
+          </option>
+        )
+      })}
     </select>
   )
 }
